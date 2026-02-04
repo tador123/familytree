@@ -1,0 +1,245 @@
+// This is your Prisma schema file for the Family Tree Application
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== PEOPLE TABLE ====================
+// Represents individual family members with rich biographical data
+model Person {
+  id                String   @id @default(uuid())
+  
+  // Basic Information
+  firstName         String   @db.VarChar(100)
+  middleName        String?  @db.VarChar(100)
+  lastName          String   @db.VarChar(100)
+  maidenName        String?  @db.VarChar(100)
+  preferredName     String?  @db.VarChar(100)
+  gender            String?  @db.VarChar(20)
+  
+  // Life Events
+  birthDate         DateTime?
+  birthPlace        String?  @db.VarChar(255)
+  deathDate         DateTime?
+  deathPlace        String?  @db.VarChar(255)
+  
+  // Biographical Information
+  biography         String?  @db.Text
+  occupation        String?  @db.VarChar(150)
+  education         String?  @db.Text
+  
+  // Creative Fields for Rich UI
+  personalityTags   String[] // e.g., ['storyteller', 'gardener', 'musician', 'traveler']
+  closestMemories   Json?    // Structured data for bio-card memories
+  favoriteQuote     String?  @db.Text
+  lifeHighlights    Json?    // Array of significant life events
+  
+  // Contact & Location
+  email             String?  @db.VarChar(255)
+  phone             String?  @db.VarChar(50)
+  currentLocation   String?  @db.VarChar(255)
+  
+  // Visual Profile
+  profilePhotoId    String?
+  profilePhoto      Media?   @relation("ProfilePhoto", fields: [profilePhotoId], references: [id])
+  
+  // Metadata
+  isLiving          Boolean  @default(true)
+  privacyLevel      String   @default("family") @db.VarChar(50) // 'public', 'family', 'private'
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  relationshipsFrom Relationship[] @relation("PersonFrom")
+  relationshipsTo   Relationship[] @relation("PersonTo")
+  media             Media[]        @relation("PersonMedia")
+  memories          Memory[]
+  attendedEvents    EventAttendance[]
+  
+  @@index([lastName, firstName])
+  @@index([birthDate])
+  @@index([isLiving])
+  @@map("people")
+}
+
+// ==================== RELATIONSHIPS TABLE ====================
+// Flexible relationship system supporting various connection types
+model Relationship {
+  id                String   @id @default(uuid())
+  
+  // Related Persons
+  personFromId      String
+  personFrom        Person   @relation("PersonFrom", fields: [personFromId], references: [id], onDelete: Cascade)
+  
+  personToId        String
+  personTo          Person   @relation("PersonTo", fields: [personToId], references: [id], onDelete: Cascade)
+  
+  // Relationship Details
+  relationshipType  String   @db.VarChar(50) // 'parent', 'child', 'spouse', 'sibling', 'cousin', 'guardian', 'custom'
+  customType        String?  @db.VarChar(100) // For custom relationship types
+  
+  // Timeline
+  startDate         DateTime?
+  endDate           DateTime?
+  isCurrent         Boolean  @default(true)
+  
+  // Additional Context
+  notes             String?  @db.Text
+  strength          Int?     @default(5) @db.SmallInt // 1-10 scale for relationship closeness
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([personFromId, personToId, relationshipType])
+  @@index([personFromId])
+  @@index([personToId])
+  @@index([relationshipType])
+  @@map("relationships")
+}
+
+// ==================== MEDIA TABLE ====================
+// Photos, videos, documents linked to people or family events
+model Media {
+  id                String   @id @default(uuid())
+  
+  // File Information
+  filename          String   @db.VarChar(255)
+  originalFilename  String   @db.VarChar(255)
+  filePath          String   @db.VarChar(500)
+  thumbnailPath     String?  @db.VarChar(500)
+  fileType          String   @db.VarChar(50) // 'image', 'video', 'document', 'audio'
+  mimeType          String   @db.VarChar(100)
+  fileSize          Int
+  
+  // Media Metadata
+  title             String?  @db.VarChar(255)
+  description       String?  @db.Text
+  caption           String?  @db.Text
+  
+  // Context
+  dateTaken         DateTime?
+  location          String?  @db.VarChar(255)
+  photographer      String?  @db.VarChar(100)
+  tags              String[] // Searchable tags
+  
+  // Linked Entities
+  personId          String?
+  person            Person?  @relation("PersonMedia", fields: [personId], references: [id], onDelete: SetNull)
+  
+  familyEventId     String?
+  familyEvent       FamilyEvent? @relation(fields: [familyEventId], references: [id], onDelete: SetNull)
+  
+  // Profile Photo Usage
+  profilePersons    Person[] @relation("ProfilePhoto")
+  
+  // Metadata
+  isPublic          Boolean  @default(false)
+  isFeatured        Boolean  @default(false)
+  viewCount         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([personId])
+  @@index([familyEventId])
+  @@index([fileType])
+  @@index([dateTaken])
+  @@map("media")
+}
+
+// ==================== FAMILY EVENTS TABLE ====================
+// Weddings, reunions, birthdays, and other significant family gatherings
+model FamilyEvent {
+  id                String   @id @default(uuid())
+  
+  // Event Details
+  title             String   @db.VarChar(255)
+  description       String?  @db.Text
+  eventType         String   @db.VarChar(50) // 'wedding', 'reunion', 'birthday', 'anniversary', 'funeral', 'holiday', 'custom'
+  
+  // Timeline
+  eventDate         DateTime
+  endDate           DateTime?
+  location          String?  @db.VarChar(255)
+  venue             String?  @db.VarChar(255)
+  
+  // Event Data
+  attendeeCount     Int?
+  organizers        String[] // Names of event organizers
+  highlights        Json?    // Key moments from the event
+  
+  // Media
+  media             Media[]
+  
+  // Attendance
+  attendees         EventAttendance[]
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([eventDate])
+  @@index([eventType])
+  @@map("family_events")
+}
+
+// ==================== EVENT ATTENDANCE ====================
+// Links people to events they attended
+model EventAttendance {
+  id                String   @id @default(uuid())
+  
+  personId          String
+  person            Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  
+  eventId           String
+  event             FamilyEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  // Attendance Details
+  role              String?  @db.VarChar(50) // 'host', 'guest', 'organizer', 'speaker'
+  notes             String?  @db.Text
+  
+  createdAt         DateTime @default(now())
+  
+  @@unique([personId, eventId])
+  @@index([personId])
+  @@index([eventId])
+  @@map("event_attendance")
+}
+
+// ==================== MEMORIES TABLE ====================
+// Individual memories or stories about people
+model Memory {
+  id                String   @id @default(uuid())
+  
+  personId          String
+  person            Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  
+  // Memory Content
+  title             String   @db.VarChar(255)
+  content           String   @db.Text
+  memoryType        String   @db.VarChar(50) // 'story', 'quote', 'achievement', 'tradition', 'humor'
+  
+  // Context
+  dateOfMemory      DateTime?
+  location          String?  @db.VarChar(255)
+  sharedBy          String?  @db.VarChar(100) // Who shared this memory
+  
+  // Engagement
+  isFeatured        Boolean  @default(false)
+  emotionalTone     String?  @db.VarChar(50) // 'joyful', 'nostalgic', 'inspiring', 'humorous'
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([personId])
+  @@index([isFeatured])
+  @@map("memories")
+}

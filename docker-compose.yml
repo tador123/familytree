@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: familytree-db
+    environment:
+      POSTGRES_USER: familytree
+      POSTGRES_PASSWORD: familytree_password
+      POSTGRES_DB: familytree
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - familytree-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familytree"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Service (Logic & Bio Data)
+  api-service:
+    build:
+      context: ./services/api-service
+      dockerfile: Dockerfile
+    container_name: familytree-api
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://familytree:familytree_password@postgres:5432/familytree
+      MEDIA_SERVICE_URL: http://media-service:3002
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/api-service:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - familytree-network
+    command: npm run dev
+
+  # Media Service (Photos & Files)
+  media-service:
+    build:
+      context: ./services/media-service
+      dockerfile: Dockerfile
+    container_name: familytree-media
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://familytree:familytree_password@postgres:5432/familytree
+      UPLOAD_PATH: /uploads
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./services/media-service:/app
+      - /app/node_modules
+      - media_uploads:/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - familytree-network
+    command: npm run dev
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: familytree-frontend
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_MEDIA_URL: http://localhost:3002
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api-service
+      - media-service
+    networks:
+      - familytree-network
+    command: npm run dev
+
+networks:
+  familytree-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  media_uploads:
