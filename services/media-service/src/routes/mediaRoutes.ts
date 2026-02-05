@@ -2,33 +2,115 @@
 import { Router, Request, Response } from 'express';
 // @ts-ignore
 import path from 'path';
+import prisma from '../lib/prisma';
+import { 
+  getMemoryGalleryForMember,
+  getProfilePhotoForMember,
+  getAllMediaForMember,
+  deleteMedia,
+  updateMediaMetadata
+} from '../utils/mediaUtils';
 
 const router = Router();
 
 // GET all media items
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    // TODO: Fetch from database
+    const media = await prisma.media.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 100 // Limit to 100 most recent
+    });
+
     res.json({
+      success: true,
       message: 'Get all media items',
-      data: []
+      data: media
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching media:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-// GET media by family member ID
+// GET memory gallery for a specific member
+router.get('/member/:memberId/gallery', async (req: Request, res: Response) => {
+  try {
+    const { memberId } = req.params;
+    const featuredOnly = req.query.featured === 'true';
+    
+    const gallery = await getMemoryGalleryForMember(memberId, featuredOnly);
+    
+    res.json({
+      success: true,
+      message: `Memory gallery for member ${memberId}`,
+      count: gallery.length,
+      data: gallery
+    });
+  } catch (error) {
+    console.error('Error fetching memory gallery:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// GET profile photo for a member
+router.get('/member/:memberId/profile-photo', async (req: Request, res: Response) => {
+  try {
+    const { memberId } = req.params;
+    
+    const profilePhoto = await getProfilePhotoForMember(memberId);
+    
+    if (!profilePhoto) {
+      return res.status(404).json({
+        success: false,
+        error: 'Profile photo not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Profile photo for member ${memberId}`,
+      data: profilePhoto
+    });
+  } catch (error) {
+    console.error('Error fetching profile photo:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// GET all media for a specific member
 router.get('/member/:memberId', async (req: Request, res: Response) => {
   try {
     const { memberId } = req.params;
-    // TODO: Fetch from database
+    
+    const media = await getAllMediaForMember(memberId);
+    
     res.json({
+      success: true,
       message: `Get media for member ${memberId}`,
-      data: []
+      count: media.length,
+      data: media
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching member media:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
@@ -36,13 +118,39 @@ router.get('/member/:memberId', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // TODO: Fetch from database
+    
+    const media = await prisma.media.findUnique({
+      where: { id },
+      include: {
+        person: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
+    });
+    
+    if (!media) {
+      return res.status(404).json({
+        success: false,
+        error: 'Media item not found'
+      });
+    }
+    
     res.json({
+      success: true,
       message: `Get media item ${id}`,
-      data: null
+      data: media
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching media item:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
@@ -51,15 +159,27 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    // TODO: Get file path from database
-    // TODO: Delete physical file
-    // TODO: Delete database record
+    await deleteMedia(id);
     
     res.json({
-      message: `Media item ${id} deleted`
+      success: true,
+      message: `Media item ${id} deleted successfully`
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error deleting media:', error);
+    
+    if (error instanceof Error && error.message === 'Media not found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Media item not found'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
@@ -67,15 +187,30 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const metadata = req.body;
+    const { title, description, caption, isFeatured, tags, dateTaken, location } = req.body;
     
-    // TODO: Update database
+    const updatedMedia = await updateMediaMetadata(id, {
+      title,
+      description,
+      caption,
+      isFeatured,
+      tags,
+      dateTaken: dateTaken ? new Date(dateTaken) : undefined,
+      location
+    });
+    
     res.json({
-      message: `Media item ${id} updated`,
-      data: metadata
+      success: true,
+      message: `Media item ${id} updated successfully`,
+      data: updatedMedia
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error updating media:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

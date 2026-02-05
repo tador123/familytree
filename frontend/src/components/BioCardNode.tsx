@@ -57,24 +57,30 @@ function BioCardNode({ data, selected }: NodeProps<BioCardNodeData>) {
 
       <motion.div
         className={clsx(
-          'w-64 rounded-4xl shadow-soft overflow-hidden cursor-pointer transition-all',
+          'w-64 rounded-2xl shadow-lg overflow-hidden cursor-pointer transition-all border-2',
           bgColor,
-          selected && 'ring-4 ring-blue-400'
+          selected ? 'ring-4 ring-emerald-400 border-emerald-400' : 'border-white'
         )}
-        whileHover={{ scale: 1.05 }}
+        whileHover={{ scale: 1.05, y: -5 }}
+        whileTap={{ scale: 0.98 }}
         onClick={() => data.onCardClick?.(data.id)}
+        style={{ transition: 'all 0.2s ease-in-out' }}
       >
         {/* Card Header with Photo */}
         <div className="p-4 flex items-center gap-3">
           <div className="relative w-16 h-16 flex-shrink-0">
-            <div className="absolute inset-0 bg-white rounded-full shadow-md" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white to-gray-100 rounded-full shadow-md" />
             <img
-              src={data.profilePhoto || '/placeholder-avatar.png'}
+              src={data.profilePhoto || 'https://i.pravatar.cc/150?img=1'}
               alt={data.name}
-              className="relative w-full h-full rounded-full object-cover z-10"
+              className="relative w-full h-full rounded-full object-cover z-10 border-2 border-white"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = 'https://i.pravatar.cc/150?img=1';
+              }}
             />
             {data.isLiving && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white z-20" 
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white z-20 animate-pulse" 
                    title="Living" />
             )}
           </div>
@@ -116,6 +122,11 @@ function BioCardNode({ data, selected }: NodeProps<BioCardNodeData>) {
             )}
           </div>
         )}
+
+        {/* Click hint */}
+        <div className="px-4 pb-3 text-center">
+          <p className="text-xs text-gray-500 italic">Click to view scrapbook</p>
+        </div>
       </motion.div>
 
       {/* Output Handle (for children connections) */}

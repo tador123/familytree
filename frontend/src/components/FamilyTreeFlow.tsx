@@ -22,37 +22,31 @@ import dagre from 'dagre';
 import axios from 'axios';
 // @ts-ignore - Local component
 import BioCardNode, { BioCardNodeData } from './BioCardNode';
+// @ts-ignore - Local component
+import ScrapbookOverlay from './ScrapbookOverlay';
 // @ts-ignore - CSS module
 import 'reactflow/dist/style.css';
 
-interface TreeNode {
+interface FamilyMember {
   id: string;
-  personId: string;
   firstName: string;
   lastName: string;
-  preferredName?: string | null;
-  profilePhoto?: string | null;
-  bioSnippet?: string | null;
-  personalityTags: string[];
-  birthDate?: string | null;
-  deathDate?: string | null;
+  middleName?: string;
+  bio?: string;
+  birthDate?: string;
+  deathDate?: string;
+  birthPlace?: string;
+  deathPlace?: string;
   isLiving: boolean;
-  children: TreeNode[];
-  spouses: SpouseNode[];
+  gender?: string;
+  profilePhotoId?: string;
+  fatherId?: string;
+  motherId?: string;
+  spouseId?: string;
 }
 
-interface SpouseNode {
-  id: string;
-  personId: string;
-  firstName: string;
-  lastName: string;
-  preferredName?: string | null;
-  profilePhoto?: string | null;
-  bioSnippet?: string | null;
-  personalityTags: string[];
-  birthDate?: string | null;
-  deathDate?: string | null;
-  isLiving: boolean;
+interface MemberWithPhoto extends FamilyMember {
+  profilePhotoUrl?: string;
 }
 
 const nodeWidth = 280;
@@ -100,104 +94,119 @@ export default function FamilyTreeFlow() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
 
   const nodeTypes = useMemo(() => ({ bioCard: BioCardNode }), []);
 
   const handleCardClick = useCallback((id: string) => {
     console.log('Card clicked:', id);
-    // Navigate to detail page or open modal
-    // router.push(`/members/${id}`);
+    setSelectedMemberId(id);
+    setIsOverlayOpen(true);
   }, []);
 
-  const buildFlowData = useCallback((treeData: TreeNode[]) => {
+  const handleCloseOverlay = useCallback(() => {
+    setIsOverlayOpen(false);
+    setSelectedMemberId(null);
+  }, []);
+
+  const buildFlowData = useCallback((members: MemberWithPhoto[]) => {
     const flowNodes: Node<BioCardNodeData>[] = [];
     const flowEdges: Edge[] = [];
+    const addedNodes = new Set<string>();
     let colorIndex = 0;
 
-    const processNode = (node: TreeNode, generation: number = 0) => {
-      const birthYear = node.birthDate ? new Date(node.birthDate).getFullYear() : undefined;
-      const deathYear = node.deathDate ? new Date(node.deathDate).getFullYear() : undefined;
+    // Create nodes for all members
+    members.forEach((member) => {
+      if (addedNodes.has(member.id)) return;
       
-      // Add main person node
+      const birthYear = member.birthDate ? new Date(member.birthDate).getFullYear() : undefined;
+      const deathYear = member.deathDate ? new Date(member.deathDate).getFullYear() : undefined;
+      
       flowNodes.push({
-        id: node.id,
+        id: member.id,
         type: 'bioCard',
         position: { x: 0, y: 0 }, // Will be set by dagre
         data: {
-          id: node.id,
-          name: node.preferredName || `${node.firstName} ${node.lastName}`,
-          bioSnippet: node.bioSnippet || undefined,
-          profilePhoto: node.profilePhoto || undefined,
-          personalityTags: node.personalityTags,
+          id: member.id,
+          name: `${member.firstName} ${member.lastName}`,
+          bioSnippet: member.bio ? member.bio.substring(0, 100) : undefined,
+          profilePhoto: member.profilePhotoUrl,
+          personalityTags: [],
           birthYear,
           deathYear,
-          isLiving: node.isLiving,
+          isLiving: member.isLiving,
           backgroundColor: bgColors[colorIndex % bgColors.length],
           onCardClick: handleCardClick,
         },
       });
+      addedNodes.add(member.id);
       colorIndex++;
+    });
 
-      // Add spouse nodes
-      node.spouses.forEach((spouse, spouseIndex) => {
-        const spouseId = `${node.id}-spouse-${spouseIndex}`;
-        const spouseBirthYear = spouse.birthDate ? new Date(spouse.birthDate).getFullYear() : undefined;
-        const spouseDeathYear = spouse.deathDate ? new Date(spouse.deathDate).getFullYear() : undefined;
+    // Create edges based on relationships
+    members.forEach((member) => {
+      // Parent-child relationship (father)
+      if (member.fatherId && addedNodes.has(member.fatherId)) {
+        const edgeId = `${member.fatherId}-${member.id}`;
+        if (!flowEdges.find(e => e.id === edgeId)) {
+          flowEdges.push({
+            id: edgeId,
+            source: member.fatherId,
+            target: member.id,
+            type: ConnectionLineType.SmoothStep,
+            animated: false,
+            style: { stroke: '#3b82f6', strokeWidth: 2 },
+            label: 'Father',
+            labelStyle: { fontSize: 10, fill: '#3b82f6' },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#3b82f6',
+            },
+          });
+        }
+      }
 
-        flowNodes.push({
-          id: spouseId,
-          type: 'bioCard',
-          position: { x: 0, y: 0 },
-          data: {
-            id: spouse.id,
-            name: spouse.preferredName || `${spouse.firstName} ${spouse.lastName}`,
-            bioSnippet: spouse.bioSnippet || undefined,
-            profilePhoto: spouse.profilePhoto || undefined,
-            personalityTags: spouse.personalityTags,
-            birthYear: spouseBirthYear,
-            deathYear: spouseDeathYear,
-            isLiving: spouse.isLiving,
-            backgroundColor: bgColors[colorIndex % bgColors.length],
-            onCardClick: handleCardClick,
-          },
-        });
-        colorIndex++;
+      // Parent-child relationship (mother)
+      if (member.motherId && addedNodes.has(member.motherId)) {
+        const edgeId = `${member.motherId}-${member.id}`;
+        if (!flowEdges.find(e => e.id === edgeId)) {
+          flowEdges.push({
+            id: edgeId,
+            source: member.motherId,
+            target: member.id,
+            type: ConnectionLineType.SmoothStep,
+            animated: false,
+            style: { stroke: '#ec4899', strokeWidth: 2 },
+            label: 'Mother',
+            labelStyle: { fontSize: 10, fill: '#ec4899' },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: '#ec4899',
+            },
+          });
+        }
+      }
 
-        // Add edge between person and spouse
-        flowEdges.push({
-          id: `${node.id}-${spouseId}`,
-          source: node.id,
-          target: spouseId,
-          type: 'straight',
-          style: { stroke: '#ec4899', strokeWidth: 3 },
-          label: '💕',
-          labelStyle: { fontSize: 16 },
-          animated: false,
-        });
-      });
+      // Spouse relationship
+      if (member.spouseId && addedNodes.has(member.spouseId)) {
+        const edgeId1 = `${member.id}-${member.spouseId}`;
+        const edgeId2 = `${member.spouseId}-${member.id}`;
+        if (!flowEdges.find(e => e.id === edgeId1 || e.id === edgeId2)) {
+          flowEdges.push({
+            id: edgeId1,
+            source: member.id,
+            target: member.spouseId,
+            type: 'straight',
+            style: { stroke: '#f43f5e', strokeWidth: 3 },
+            label: '💕',
+            labelStyle: { fontSize: 16 },
+            animated: false,
+          });
+        }
+      }
+    });
 
-      // Process children
-      node.children.forEach((child) => {
-        // Add edge from parent to child
-        flowEdges.push({
-          id: `${node.id}-${child.id}`,
-          source: node.id,
-          target: child.id,
-          type: ConnectionLineType.SmoothStep,
-          animated: false,
-          style: { stroke: '#6b7280', strokeWidth: 2 },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: '#6b7280',
-          },
-        });
-
-        // Recursively process child
-        processNode(child, generation + 1);
-      });
-    };
-
-    treeData.forEach(rootNode => processNode(rootNode));
     return { flowNodes, flowEdges };
   }, [handleCardClick]);
 
@@ -205,16 +214,46 @@ export default function FamilyTreeFlow() {
     const fetchFamilyTree = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('http://localhost:3001/api/v1/family-tree');
-        const treeData: TreeNode[] = response.data.data;
 
-        if (treeData.length === 0) {
-          setError('No family tree data available');
+        // Fetch all family members
+        const membersResponse = await axios.get('http://localhost:3001/api/v1/members');
+        const members: FamilyMember[] = membersResponse.data.data;
+
+        if (members.length === 0) {
+          setError('No family members found. Add members to see the tree.');
           setLoading(false);
           return;
         }
 
-        const { flowNodes, flowEdges } = buildFlowData(treeData);
+        // Fetch profile photos for members with profilePhotoId
+        const membersWithPhotos: MemberWithPhoto[] = await Promise.all(
+          members.map(async (member) => {
+            if (member.profilePhotoId) {
+              try {
+                const photoResponse = await axios.get(
+                  `http://localhost:3002/api/v1/media/member/${member.id}/profile-photo`,
+                  { responseType: 'arraybuffer' }
+                );
+                const photoBlob = new Blob([photoResponse.data], { type: 'image/jpeg' });
+                const photoUrl = URL.createObjectURL(photoBlob);
+                return { ...member, profilePhotoUrl: photoUrl };
+              } catch (photoError) {
+                console.error(`Error fetching photo for ${member.id}:`, photoError);
+                return member;
+              }
+            }
+            return member;
+          })
+        );
+
+        const { flowNodes, flowEdges } = buildFlowData(membersWithPhotos);
+        
+        if (flowNodes.length === 0) {
+          setError('No family members to display');
+          setLoading(false);
+          return;
+        }
+
         const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
           flowNodes,
           flowEdges
@@ -225,7 +264,7 @@ export default function FamilyTreeFlow() {
         setLoading(false);
       } catch (err) {
         console.error('Error fetching family tree:', err);
-        setError('Failed to load family tree. Please try again.');
+        setError('Failed to load family tree. Please ensure API service is running.');
         setLoading(false);
       }
     };
@@ -257,43 +296,74 @@ export default function FamilyTreeFlow() {
   }
 
   return (
-    <div className="w-full h-screen">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        fitView
-        minZoom={0.1}
-        maxZoom={1.5}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-        connectionLineType={ConnectionLineType.SmoothStep}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e5e7eb" />
-        <Controls />
-        
-        <Panel position="top-left" className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-soft p-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Family Tree</h2>
-          <p className="text-sm text-gray-600">
-            🖱️ Drag to pan • 🔍 Scroll to zoom • 🎯 Click cards for details
-          </p>
-        </Panel>
+    <>
+      <div className="w-full h-screen">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.1}
+          maxZoom={1.5}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          connectionLineType={ConnectionLineType.SmoothStep}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e5e7eb" />
+          <Controls />
+          
+          <Panel position="top-left" className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-soft p-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Family Tree</h2>
+            <p className="text-sm text-gray-600">
+              🖱️ Drag to pan • 🔍 Scroll to zoom • 🎯 Click cards for scrapbook
+            </p>
+          </Panel>
 
-        <Panel position="top-right" className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-soft p-3">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-green-400 rounded-full"></span>
-              Living
-            </span>
-            <span className="mx-1">•</span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block">💕</span>
-              Married
-            </span>
-          </div>
-        </Panel>
-      </ReactFlow>
-    </div>
+          <Panel position="top-right" className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-soft p-3">
+            <div className="flex flex-col gap-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 bg-green-400 rounded-full"></span>
+                <span>Living</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>💕</span>
+                <span>Spouse</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center">
+                  <div className="w-3 h-0.5 bg-blue-500"></div>
+                  <div className="w-0 h-0 border-l-4 border-t-2 border-b-2 border-l-blue-500 border-t-transparent border-b-transparent"></div>
+                </div>
+                <span>Father</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center">
+                  <div className="w-3 h-0.5 bg-pink-500"></div>
+                  <div className="w-0 h-0 border-l-4 border-t-2 border-b-2 border-l-pink-500 border-t-transparent border-b-transparent"></div>
+                </div>
+                <span>Mother</span>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel position="bottom-right" className="bg-emerald-500 text-white rounded-2xl shadow-soft p-3">
+            <div className="text-center">
+              <div className="text-2xl font-bold">{nodes.length}</div>
+              <div className="text-xs">Family Members</div>
+            </div>
+          </Panel>
+        </ReactFlow>
+      </div>
+
+      {/* Scrapbook Overlay */}
+      {selectedMemberId && (
+        <ScrapbookOverlay
+          memberId={selectedMemberId}
+          isOpen={isOverlayOpen}
+          onClose={handleCloseOverlay}
+        />
+      )}
+    </>
   );
 }

@@ -33,6 +33,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/v1/family-members', familyMemberRoutes);
+app.use('/api/v1/members', familyMemberRoutes); // Alias for convenience
 app.use('/api/v1/relationships', relationshipRoutes);
 app.use('/api/v1/family-tree', familyTreeRoutes);
 

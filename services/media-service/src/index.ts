@@ -9,7 +9,7 @@ import morgan from 'morgan';
 // @ts-ignore
 import dotenv from 'dotenv';
 import { uploadRoutes } from './routes/uploadRoutes';
-import { mediaRoutes } from './routes/mediaRoutes';
+// import { mediaRoutes } from './routes/mediaRoutes'; // Temporarily disabled
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -42,7 +42,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/v1/upload', uploadRoutes);
-app.use('/api/v1/media', mediaRoutes);
+// app.use('/api/v1/media', mediaRoutes); // Temporarily disabled
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

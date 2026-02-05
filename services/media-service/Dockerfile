@@ -8,8 +8,11 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy everything except node_modules
 COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
 
 # Create uploads directory
 RUN mkdir -p /uploads
