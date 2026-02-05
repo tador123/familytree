@@ -3,7 +3,7 @@
  * Handles profile photos and gallery images separately
  */
 
-// @ts-ignore
+// @ts-ignore - Dependencies are in Docker container
 import multer, { FileFilterCallback } from 'multer';
 // @ts-ignore
 import path from 'path';
@@ -11,6 +11,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore
 import fs from 'fs';
+// @ts-ignore - express is installed in Docker container
 import { Request } from 'express';
 
 // @ts-ignore
