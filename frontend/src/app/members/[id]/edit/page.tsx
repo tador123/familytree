@@ -9,6 +9,8 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 // @ts-ignore - axios is installed in Docker container
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
+import LoginPromptModal from '@/components/LoginPromptModal';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -51,17 +53,20 @@ interface EditFormData {
 
 export default function EditMemberPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const { isGuest, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [member, setMember] = useState<FamilyMember | null>(null);
   const [allMembers, setAllMembers] = useState<FamilyMember[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<EditFormData>();
   const isLiving = watch('isLiving', true);
 
   // Fetch member data and all members for relationship dropdowns
   useEffect(() => {
+    if (authLoading) return;
     const fetchData = async () => {
       try {
         // Fetch the member to edit
@@ -99,9 +104,15 @@ export default function EditMemberPage({ params }: { params: { id: string } }) {
     };
 
     fetchData();
-  }, [params.id, setValue]);
+  }, [params.id, setValue, authLoading]);
 
   const onSubmit = async (data: EditFormData) => {
+    // Guest mode: prompt login before saving
+    if (isGuest) {
+      setShowLoginPrompt(true);
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -192,6 +203,7 @@ export default function EditMemberPage({ params }: { params: { id: string } }) {
   );
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
@@ -464,5 +476,13 @@ export default function EditMemberPage({ params }: { params: { id: string } }) {
         </div>
       </div>
     </div>
+
+    {/* Login prompt for guest users */}
+    <LoginPromptModal
+      isOpen={showLoginPrompt}
+      onClose={() => setShowLoginPrompt(false)}
+      action="save changes to this family member"
+    />
+    </>
   );
 }

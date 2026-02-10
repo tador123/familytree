@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 // @ts-ignore - axios is installed in Docker container
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -29,10 +30,13 @@ export default function MemberDetailPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { isLoading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetchMemberDetails();
-  }, [params.id]);
+    if (!authLoading) {
+      fetchMemberDetails();
+    }
+  }, [params.id, authLoading]);
 
   const fetchMemberDetails = async () => {
     try {

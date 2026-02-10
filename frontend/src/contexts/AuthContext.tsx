@@ -14,6 +14,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isGuest: boolean;
   isLoading: boolean;
   // Google authentication
   loginWithGoogle: (credential: string) => Promise<{ success: boolean; message: string; user?: User }>;
@@ -38,6 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Sync axios default Authorization header with auth state
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token && user) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [user]);
+
   const verifySession = async (token: string) => {
     try {
       const response = await axios.get(`${API_URL}/social-auth/me`, {
@@ -45,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.data?.id) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         setUser({
           id: response.data.id,
           email: response.data.email,
@@ -59,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     localStorage.removeItem('authToken');
+    delete axios.defaults.headers.common['Authorization'];
     setIsLoading(false);
   };
 
@@ -76,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.data.success && response.data.token) {
         localStorage.setItem('authToken', response.data.token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
         const googleUser: User = {
           id: response.data.user.id,
           email: response.data.user.email,
@@ -98,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     localStorage.removeItem('authToken');
+    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
 
@@ -106,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
+        isGuest: !user,
         isLoading,
         loginWithGoogle,
         logout,

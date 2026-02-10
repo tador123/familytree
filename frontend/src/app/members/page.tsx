@@ -7,9 +7,11 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 // @ts-ignore - next is installed in Docker container
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
+import LoginPromptModal from '@/components/LoginPromptModal'
 
 // @ts-ignore - process is available in Node.js
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'
 
 interface FamilyMember {
   id: string
@@ -25,11 +27,15 @@ export default function MembersPage() {
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const router = useRouter()
+  const { isGuest, isLoading: authLoading } = useAuth()
 
   useEffect(() => {
-    fetchMembers()
-  }, [])
+    if (!authLoading) {
+      fetchMembers()
+    }
+  }, [authLoading])
 
   const fetchMembers = async () => {
     try {
@@ -63,6 +69,7 @@ export default function MembersPage() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 py-4 sm:py-8 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -152,10 +159,19 @@ export default function MembersPage() {
                             Edit
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={async () => {
+                              if (isGuest) {
+                                setShowLoginPrompt(true)
+                                return
+                              }
                               if (confirm(`Are you sure you want to delete ${member.firstName} ${member.lastName}?`)) {
-                                // Delete functionality
-                                console.log('Delete:', member.id)
+                                try {
+                                  await axios.delete(`${API_URL}/family-members/${member.id}`)
+                                  setMembers(prev => prev.filter(m => m.id !== member.id))
+                                } catch (err) {
+                                  console.error('Error deleting member:', err)
+                                  alert('Failed to delete family member')
+                                }
                               }
                             }}
                             className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors"
@@ -180,5 +196,13 @@ export default function MembersPage() {
         )}
       </div>
     </div>
+
+    {/* Login prompt for guest users */}
+    <LoginPromptModal
+      isOpen={showLoginPrompt}
+      onClose={() => setShowLoginPrompt(false)}
+      action="delete a family member"
+    />
+    </>
   )
 }

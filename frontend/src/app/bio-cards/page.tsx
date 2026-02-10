@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 // @ts-ignore - axios is installed in Docker container
 import axios from 'axios'
+import { useAuth } from '@/contexts/AuthContext'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
@@ -18,10 +19,13 @@ const BACKGROUND_COLORS = ['pink', 'peach', 'lavender', 'mint', 'sky', 'cream', 
 export default function BioCardsDemo() {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { isLoading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetchFamilyMembersWithGallery();
-  }, []);
+    if (!authLoading) {
+      fetchFamilyMembersWithGallery();
+    }
+  }, [authLoading]);
 
   const fetchFamilyMembersWithGallery = async () => {
     try {

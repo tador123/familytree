@@ -1,14 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { getFamilyTree } from '../services/familyTreeService';
+import { optionalAuth } from '../middleware/auth';
 
 const router = Router();
 
 // GET family tree
 // Optional query param: rootPersonId to specify starting point
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
+    // Guests see no data
+    if (!req.userId) {
+      return res.json({ success: true, data: [] });
+    }
+
     const rootPersonId = req.query.rootPersonId as string | undefined;
-    const tree = await getFamilyTree(rootPersonId);
+    const tree = await getFamilyTree(rootPersonId, req.userId);
     
     res.json({
       success: true,

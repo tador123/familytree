@@ -56,9 +56,11 @@ export interface FlatPerson {
 
 /**
  * Fetch all people and their relationships from the database
+ * Filtered by userId to show only the user's own data
  */
-export async function getAllPeopleWithRelationships(): Promise<FlatPerson[]> {
+export async function getAllPeopleWithRelationships(userId: string): Promise<FlatPerson[]> {
   const people = await prisma.person.findMany({
+    where: { userId },
     include: {
       relationshipsFrom: {
         where: {
@@ -214,8 +216,9 @@ export function buildFamilyTree(people: FlatPerson[], rootPersonId?: string): Tr
 /**
  * Get complete family tree data
  */
-export async function getFamilyTree(rootPersonId?: string) {
-  const people = await getAllPeopleWithRelationships();
+export async function getFamilyTree(rootPersonId?: string, userId?: string) {
+  if (!userId) return [];
+  const people = await getAllPeopleWithRelationships(userId);
   const tree = buildFamilyTree(people, rootPersonId);
   return tree;
 }

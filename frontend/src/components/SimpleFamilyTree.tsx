@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 // @ts-ignore - next is installed in Docker container
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -26,10 +27,13 @@ export default function SimpleFamilyTree() {
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
+  const { isLoading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetchMembers();
-  }, []);
+    if (!authLoading) {
+      fetchMembers();
+    }
+  }, [authLoading]);
 
   const fetchMembers = async () => {
     try {

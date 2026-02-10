@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
+import LoginPromptModal from './LoginPromptModal';
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -234,6 +236,7 @@ const GalleryPhotosUploader = ({
 
 // Main component
 export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void }) {
+  const { isGuest, isLoading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
@@ -241,6 +244,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
   const [galleryPhotos, setGalleryPhotos] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   // Debug current step
   console.log('AddMemberForm render - currentStep:', currentStep, 'isSubmitting:', isSubmitting);
@@ -255,6 +259,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
 
   // Fetch existing family members
   useEffect(() => {
+    if (authLoading) return;
     const fetchMembers = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/members`);
@@ -266,7 +271,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
       }
     };
     fetchMembers();
-  }, []);
+  }, [authLoading]);
 
   // Handle profile photo selection
   const handleProfilePhotoSelect = (file: File) => {
@@ -312,6 +317,12 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
     // Only submit on step 3
     if (currentStep !== 3) {
       console.log('Blocking submit - not on step 3');
+      return;
+    }
+
+    // Guest mode: prompt login before saving
+    if (isGuest) {
+      setShowLoginPrompt(true);
       return;
     }
     
@@ -393,6 +404,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
   };
 
   return (
+    <>
     <div className="max-w-2xl mx-auto p-6">
       {/* Success Animation */}
       <AnimatePresence>
@@ -813,5 +825,13 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
         </form>
       </motion.div>
     </div>
+
+    {/* Login prompt for guest users */}
+    <LoginPromptModal
+      isOpen={showLoginPrompt}
+      onClose={() => setShowLoginPrompt(false)}
+      action="save this family member"
+    />
+    </>
   );
 }

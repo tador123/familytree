@@ -56,6 +56,10 @@ model Person {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
+  // Ownership - links person to the user who created them
+  userId            String?
+  owner             User?    @relation("UserPeople", fields: [userId], references: [id], onDelete: Cascade)
+  
   // Relations
   relationshipsFrom Relationship[] @relation("PersonFrom")
   relationshipsTo   Relationship[] @relation("PersonTo")
@@ -66,6 +70,7 @@ model Person {
   @@index([lastName, firstName])
   @@index([birthDate])
   @@index([isLiving])
+  @@index([userId])
   @@map("people")
 }
 
@@ -269,6 +274,7 @@ model User {
   otpCodes      OtpCode[]
   magicLinks    MagicLink[]
   sessions      Session[]
+  people        Person[]  @relation("UserPeople")
   
   @@index([phoneNumber])
   @@index([email])

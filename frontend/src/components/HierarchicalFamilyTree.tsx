@@ -5,6 +5,7 @@
 import { useState, useEffect, useMemo } from 'react';
 // @ts-ignore - next is installed in Docker container
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -289,6 +290,7 @@ export default function HierarchicalFamilyTree() {
   const [loadingGallery, setLoadingGallery] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const { isLoading: authLoading } = useAuth();
 
   const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
 
@@ -332,8 +334,10 @@ export default function HierarchicalFamilyTree() {
 
   // Fetch members from API
   useEffect(() => {
-    fetchMembers();
-  }, []);
+    if (!authLoading) {
+      fetchMembers();
+    }
+  }, [authLoading]);
 
   // Fetch gallery photos when selected member changes
   useEffect(() => {

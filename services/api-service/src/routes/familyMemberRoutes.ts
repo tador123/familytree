@@ -1,13 +1,20 @@
 // @ts-ignore - Dependencies are in Docker container
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { requireAuth, optionalAuth } from '../middleware/auth';
 
 const router = Router();
 
 // GET all family members
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
+    // Guests see no data, authenticated users see only their own
+    if (!req.userId) {
+      return res.json({ success: true, message: 'Get all family members', data: [] });
+    }
+
     const members = await prisma.person.findMany({
+      where: { userId: req.userId },
       orderBy: [
         { lastName: 'asc' },
         { firstName: 'asc' }
@@ -76,7 +83,7 @@ router.get('/', async (_req: Request, res: Response) => {
 });
 
 // GET single family member by ID
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -112,6 +119,14 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
     
     if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Family member not found'
+      });
+    }
+
+    // Verify ownership — users can only view their own data
+    if (!req.userId || member.userId !== req.userId) {
       return res.status(404).json({
         success: false,
         error: 'Family member not found'
@@ -155,7 +170,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST create new family member with validation
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const { 
       firstName, 
@@ -240,7 +255,8 @@ router.post('/', async (req: Request, res: Response) => {
         deathPlace,
         isLiving: isLiving !== undefined ? isLiving : true,
         biography: bio,
-        personalityTags: []
+        personalityTags: [],
+        userId: req.userId
       }
     });
 
@@ -326,7 +342,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT update family member
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { 
@@ -353,7 +369,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       favoriteQuote
     } = req.body;
 
-    // Check if member exists
+    // Check if member exists and belongs to user
     const existingMember = await prisma.person.findUnique({
       where: { id },
       include: {
@@ -365,7 +381,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       }
     });
 
-    if (!existingMember) {
+    if (!existingMember || existingMember.userId !== req.userId) {
       return res.status(404).json({
         success: false,
         error: 'Family member not found'
@@ -607,7 +623,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // PATCH update family member (alias for PUT to support both methods)
-router.patch('/:id', async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { 
@@ -634,7 +650,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       favoriteQuote
     } = req.body;
 
-    // Check if member exists
+    // Check if member exists and belongs to user
     const existingMember = await prisma.person.findUnique({
       where: { id },
       include: {
@@ -646,7 +662,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
     });
 
-    if (!existingMember) {
+    if (!existingMember || existingMember.userId !== req.userId) {
       return res.status(404).json({
         success: false,
         error: 'Family member not found'
@@ -888,29 +904,50 @@ router.patch('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE family member
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // TODO: Delete from database
+
+    // Verify ownership
+    const member = await prisma.person.findUnique({ where: { id } });
+    if (!member || member.userId !== req.userId) {
+      return res.status(404).json({ success: false, error: 'Family member not found' });
+    }
+
+    // Delete all relationships involving this person
+    await prisma.relationship.deleteMany({
+      where: {
+        OR: [
+          { personFromId: id },
+          { personToId: id },
+        ],
+      },
+    });
+
+    // Delete the person
+    await prisma.person.delete({ where: { id } });
+
     res.json({
-      message: `Family member ${id} deleted`
+      success: true,
+      message: `Family member ${id} deleted successfully`
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error deleting family member:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
 // GET recursive family tree from a root member
-router.get('/:id/tree', async (req: Request, res: Response) => {
+router.get('/:id/tree', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    // Check if the root person exists
+    // Check if the root person exists and belongs to user
     const rootPerson = await prisma.person.findUnique({
       where: { id }
     });
     
-    if (!rootPerson) {
+    if (!rootPerson || !req.userId || rootPerson.userId !== req.userId) {
       return res.status(404).json({
         success: false,
         error: 'Root person not found'

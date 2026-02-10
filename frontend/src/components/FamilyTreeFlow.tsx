@@ -20,12 +20,16 @@ import ReactFlow, {
 import dagre from 'dagre';
 // @ts-ignore - axios is installed in Docker container
 import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
 // @ts-ignore - Local component
 import BioCardNode, { BioCardNodeData } from './BioCardNode';
 // @ts-ignore - Local component
 import ScrapbookOverlay from './ScrapbookOverlay';
 // @ts-ignore - CSS module
 import 'reactflow/dist/style.css';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
 
 interface FamilyMember {
   id: string;
@@ -215,13 +219,16 @@ export default function FamilyTreeFlow() {
     return { flowNodes, flowEdges };
   }, [handleCardClick]);
 
+  const { isLoading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return;
     const fetchFamilyTree = async () => {
       try {
         setLoading(true);
 
         // Fetch all family members
-        const membersResponse = await axios.get('http://localhost:3001/api/v1/members');
+        const membersResponse = await axios.get(`${API_BASE_URL}/members`);
         const members: FamilyMember[] = membersResponse.data.data;
 
         if (members.length === 0) {
@@ -233,7 +240,7 @@ export default function FamilyTreeFlow() {
         // Use profile photo filePath from the API response (already included via relation)
         const membersWithPhotos: MemberWithPhoto[] = members.map((member: any) => {
           if (member.profilePhoto?.filePath) {
-            return { ...member, profilePhotoUrl: `http://localhost:3002${member.profilePhoto.filePath}` };
+            return { ...member, profilePhotoUrl: `${MEDIA_BASE_URL}${member.profilePhoto.filePath}` };
           }
           return member;
         });
@@ -262,7 +269,7 @@ export default function FamilyTreeFlow() {
     };
 
     fetchFamilyTree();
-  }, [buildFlowData, setNodes, setEdges]);
+  }, [buildFlowData, setNodes, setEdges, authLoading]);
 
   if (loading) {
     return (
