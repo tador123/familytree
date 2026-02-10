@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Navigation from '@/components/Navigation'
+import Providers from '@/components/Providers'
 
 export const metadata: Metadata = {
   title: 'Family Tree Application',
@@ -17,16 +18,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 min-h-screen">
-        {/* Navigation Header */}
-        <Navigation />
+        <Providers>
+          {/* Navigation Header */}
+          <Navigation />
 
-        {/* Main Content */}
-        <main className="min-h-[calc(100vh-12rem)]">
-          {children}
-        </main>
+          {/* Main Content */}
+          <main className="min-h-[calc(100vh-12rem)]">
+            {children}
+          </main>
 
-        {/* Footer */}
-        <footer className="bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900 text-white mt-16">
+          {/* Footer */}
+          <footer className="bg-gradient-to-r from-purple-900 via-indigo-900 to-pink-900 text-white mt-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* About Section */}
@@ -83,6 +85,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+        </Providers>
       </body>
     </html>
   )

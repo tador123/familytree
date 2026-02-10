@@ -108,6 +108,7 @@ Write-Host ""
 Write-Host "[6/6] Starting frontend locally..." -ForegroundColor Yellow
 $env:NEXT_PUBLIC_API_URL = "http://localhost:3001/api/v1"
 $env:NEXT_PUBLIC_MEDIA_URL = "http://localhost:3002"
+$env:NEXT_PUBLIC_GOOGLE_CLIENT_ID = "295982166319-jf0gk170e24cd570l63r6m5fnrvqrknc.apps.googleusercontent.com"
 
 # Kill any existing frontend process on port 3000
 $existingProcess = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
@@ -122,7 +123,7 @@ Push-Location "frontend"
 $frontendPath = $PWD.Path
 Pop-Location
 
-$startCommand = "Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; cd '$frontendPath'; `$env:NEXT_PUBLIC_API_URL='http://localhost:3001/api/v1'; `$env:NEXT_PUBLIC_MEDIA_URL='http://localhost:3002'; npm run dev; Read-Host 'Press Enter to close'"
+$startCommand = "Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; cd '$frontendPath'; `$env:NEXT_PUBLIC_API_URL='http://localhost:3001/api/v1'; `$env:NEXT_PUBLIC_MEDIA_URL='http://localhost:3002'; `$env:NEXT_PUBLIC_GOOGLE_CLIENT_ID='295982166319-jf0gk170e24cd570l63r6m5fnrvqrknc.apps.googleusercontent.com'; npm run dev; Read-Host 'Press Enter to close'"
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $startCommand
 

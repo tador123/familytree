@@ -40,6 +40,11 @@ interface FamilyMember {
   isLiving: boolean;
   gender?: string;
   profilePhotoId?: string;
+  profilePhoto?: {
+    id: string;
+    filePath: string;
+    thumbnailPath?: string;
+  };
   fatherId?: string;
   motherId?: string;
   spouseId?: string;
@@ -225,26 +230,13 @@ export default function FamilyTreeFlow() {
           return;
         }
 
-        // Fetch profile photos for members with profilePhotoId
-        const membersWithPhotos: MemberWithPhoto[] = await Promise.all(
-          members.map(async (member) => {
-            if (member.profilePhotoId) {
-              try {
-                const photoResponse = await axios.get(
-                  `http://localhost:3002/api/v1/media/member/${member.id}/profile-photo`,
-                  { responseType: 'arraybuffer' }
-                );
-                const photoBlob = new Blob([photoResponse.data], { type: 'image/jpeg' });
-                const photoUrl = URL.createObjectURL(photoBlob);
-                return { ...member, profilePhotoUrl: photoUrl };
-              } catch (photoError) {
-                console.error(`Error fetching photo for ${member.id}:`, photoError);
-                return member;
-              }
-            }
-            return member;
-          })
-        );
+        // Use profile photo filePath from the API response (already included via relation)
+        const membersWithPhotos: MemberWithPhoto[] = members.map((member: any) => {
+          if (member.profilePhoto?.filePath) {
+            return { ...member, profilePhotoUrl: `http://localhost:3002${member.profilePhoto.filePath}` };
+          }
+          return member;
+        });
 
         const { flowNodes, flowEdges } = buildFlowData(membersWithPhotos);
         

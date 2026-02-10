@@ -28,6 +28,11 @@ interface MemberDetails {
   isLiving: boolean;
   gender?: string;
   profilePhotoId?: string;
+  profilePhoto?: {
+    id: string;
+    filePath: string;
+    thumbnailPath?: string;
+  };
 }
 
 interface MediaItem {
@@ -62,16 +67,17 @@ export default function ScrapbookOverlay({ memberId, isOpen, onClose }: Scrapboo
       const memberData = memberResponse.data.data;
       setMember(memberData);
 
-      // Fetch profile photo if exists
-      if (memberData.profilePhotoId) {
+      // Use profile photo filePath from the member data (already included via API relation)
+      if (memberData.profilePhoto?.filePath) {
+        setProfilePhoto(`http://localhost:3002${memberData.profilePhoto.filePath}`);
+      } else if (memberData.profilePhotoId) {
         try {
           const photoResponse = await axios.get(
-            `http://localhost:3002/api/v1/media/member/${memberId}/profile-photo`,
-            { responseType: 'arraybuffer' }
+            `http://localhost:3002/api/v1/media/member/${memberId}/profile-photo`
           );
-          const photoBlob = new Blob([photoResponse.data], { type: 'image/jpeg' });
-          const photoUrl = URL.createObjectURL(photoBlob);
-          setProfilePhoto(photoUrl);
+          if (photoResponse.data?.data?.filePath) {
+            setProfilePhoto(`http://localhost:3002${photoResponse.data.data.filePath}`);
+          }
         } catch (photoError) {
           console.error('Error fetching profile photo:', photoError);
         }

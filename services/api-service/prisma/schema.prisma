@@ -243,3 +243,84 @@ model Memory {
   @@index([isFeatured])
   @@map("memories")
 }
+
+// ==================== AUTHENTICATION TABLES ====================
+// User authentication with OTP-based login
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique @db.VarChar(255)
+  phoneNumber   String?   @unique @db.VarChar(20)
+  countryCode   String    @default("+1") @db.VarChar(5)
+  name          String?   @db.VarChar(100)
+  
+  // Social Authentication
+  facebookId    String?   @unique @db.VarChar(255)
+  instagramId   String?   @unique @db.VarChar(255)
+  googleId      String?   @unique @db.VarChar(255)
+  profilePicture String?  @db.VarChar(500)
+  authProvider  String?   @db.VarChar(50) // 'email', 'phone', 'facebook', 'instagram', 'google'
+  
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  otpCodes      OtpCode[]
+  magicLinks    MagicLink[]
+  sessions      Session[]
+  
+  @@index([phoneNumber])
+  @@index([email])
+  @@index([facebookId])
+  @@index([instagramId])
+  @@index([googleId])
+  @@map("users")
+}
+
+model OtpCode {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String?  @db.VarChar(255)
+  phoneNumber String?  @db.VarChar(20)
+  code        String   @db.VarChar(6)
+  expiresAt   DateTime
+  isUsed      Boolean  @default(false)
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now())
+  
+  @@index([phoneNumber])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("otp_codes")
+}
+
+model MagicLink {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String   @db.VarChar(255)
+  token       String   @unique @db.VarChar(64)
+  expiresAt   DateTime
+  isUsed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("magic_links")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique @db.VarChar(255)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([token])
+  @@index([userId])
+  @@map("sessions")
+}

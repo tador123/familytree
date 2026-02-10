@@ -11,6 +11,7 @@ import dotenv from 'dotenv';
 import { familyMemberRoutes } from './routes/familyMemberRoutes';
 import { relationshipRoutes } from './routes/relationshipRoutes';
 import familyTreeRoutes from './routes/familyTreeRoutes';
+import socialAuthRoutes from './routes/socialAuthRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -26,12 +27,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
+
+
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'healthy', service: 'api-service', timestamp: new Date().toISOString() });
 });
 
 // API Routes
+app.use('/api/v1/social-auth', socialAuthRoutes); // Google Sign-In
 app.use('/api/v1/family-members', familyMemberRoutes);
 app.use('/api/v1/members', familyMemberRoutes); // Alias for convenience
 app.use('/api/v1/relationships', relationshipRoutes);

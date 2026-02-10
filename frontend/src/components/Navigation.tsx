@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 // Navigation Link Component
 function NavLink({ href, icon, label }: { href: string; icon: string; label: string }) {
   const icons: Record<string, JSX.Element> = {
@@ -50,9 +52,16 @@ function MobileNavLink({ href, label }: { href: string; label: string }) {
 }
 
 export default function Navigation() {
+  const { isAuthenticated, logout, isLoading, user } = useAuth();
+  
   const toggleMobileMenu = () => {
     const menu = document.getElementById('mobile-menu');
     menu?.classList.toggle('hidden');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
   };
 
   return (
@@ -89,6 +98,51 @@ export default function Navigation() {
               </svg>
               <span>Add Member</span>
             </a>
+            
+            {!isLoading && (
+              <div className="ml-2">
+                {isAuthenticated && user ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {user.profilePicture ? (
+                        <img 
+                          src={user.profilePicture} 
+                          alt={user.name || 'User'} 
+                          className="w-9 h-9 rounded-full border-2 border-purple-200 object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-sm font-bold">
+                          {user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                      )}
+                      <span className="text-sm font-medium text-gray-700 max-w-[120px] truncate hidden lg:block">
+                        {user.name || user.email || 'User'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 font-medium rounded-lg hover:bg-red-50 transition-all"
+                      title="Logout"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <a
+                    href="/login"
+                    className="px-4 py-2 text-purple-600 font-medium rounded-lg hover:bg-purple-50 transition-all flex items-center space-x-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    <span>Login</span>
+                  </a>
+                )}
+              </div>
+            )}
           </nav>
 
           {/* Mobile Menu Button */}
@@ -114,6 +168,46 @@ export default function Navigation() {
           >
             + Add Member
           </a>
+          
+          {!isLoading && (
+            <div className="pt-2">
+              {isAuthenticated && user ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 px-4 py-2">
+                    {user.profilePicture ? (
+                      <img 
+                        src={user.profilePicture} 
+                        alt={user.name || 'User'} 
+                        className="w-10 h-10 rounded-full border-2 border-purple-200 object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold">
+                        {user.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{user.name || 'User'}</p>
+                      <p className="text-xs text-gray-500 truncate">{user.email || ''}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full px-4 py-3 text-red-600 rounded-lg hover:bg-red-50 font-semibold text-center transition-all"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="/login"
+                  className="block w-full px-4 py-3 text-purple-600 rounded-lg hover:bg-purple-50 font-semibold text-center transition-all"
+                >
+                  Login
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

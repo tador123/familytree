@@ -33,6 +33,24 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://familytree:familytree_password@postgres:5432/familytree
       MEDIA_SERVICE_URL: http://media-service:3002
+      # SMS Configuration (optional - for phone auth)
+      SMS_PROVIDER: textbelt
+      TEXTBELT_API_KEY: textbelt
+      # Email Configuration (recommended - for email auth)
+      EMAIL_PROVIDER: console  # Options: console (dev), gmail (prod), resend (prod)
+      # RESEND_API_KEY: your_resend_api_key_here  # Get free at https://resend.com (100 emails/day)
+      # GMAIL_USER: your.email@gmail.com          # Your Gmail address
+      # GMAIL_APP_PASSWORD: your_app_password     # Generate at https://myaccount.google.com/apppasswords
+      FROM_EMAIL: noreply@familytree.local
+      FROM_NAME: Family Tree App
+      # Facebook/Instagram OAuth (FREE! - Best for verifying real users)
+      # FACEBOOK_APP_ID: your_facebook_app_id          # Get from https://developers.facebook.com
+      # FACEBOOK_APP_SECRET: your_facebook_app_secret  # Get from https://developers.facebook.com
+      # SESSION_SECRET: change_this_to_random_string   # Generate random 32-char string
+      # Google Sign-In (EASIEST! - Just need a Client ID)
+      GOOGLE_CLIENT_ID: 295982166319-jf0gk170e24cd570l63r6m5fnrvqrknc.apps.googleusercontent.com
+      API_BASE_URL: http://localhost:3001
+      FRONTEND_URL: http://localhost:3000
     ports:
       - "3001:3001"
     volumes:
@@ -76,21 +94,21 @@ services:
       dockerfile: Dockerfile
     container_name: familytree-frontend
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
-      NEXT_PUBLIC_MEDIA_URL: http://localhost:3002/api/v1
+      NEXT_PUBLIC_MEDIA_URL: http://localhost:3002
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: 295982166319-jf0gk170e24cd570l63r6m5fnrvqrknc.apps.googleusercontent.com
+      NEXT_TELEMETRY_DISABLED: "1"
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
       - /app/node_modules
-      - /app/.next
     depends_on:
       - api-service
       - media-service
     networks:
       - familytree-network
-    command: npm run dev
+    command: sh -c "npx next build && npx next start -H 0.0.0.0"
 
 networks:
   familytree-network:
