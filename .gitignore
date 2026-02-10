@@ -40,3 +40,8 @@ docker-compose.override.yml
 # Uploads
 uploads/
 media_uploads/
+
+# Startup script temporary files
+.frontend-job-id
+.frontend-pid
+.frontend.log

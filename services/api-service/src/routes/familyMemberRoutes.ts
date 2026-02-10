@@ -12,22 +12,58 @@ router.get('/', async (_req: Request, res: Response) => {
         { lastName: 'asc' },
         { firstName: 'asc' }
       ],
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        middleName: true,
-        birthDate: true,
-        deathDate: true,
-        isLiving: true,
-        profilePhotoId: true
+      include: {
+        profilePhoto: true,
+        relationshipsTo: {
+          include: {
+            personFrom: {
+              select: {
+                id: true,
+                gender: true
+              }
+            }
+          }
+        }
       }
+    });
+    
+    // Transform to include fatherId, motherId, spouseId
+    const transformedMembers = members.map(member => {
+      // Find father: parent relationship where personFrom is Male
+      const fatherRel = member.relationshipsTo.find(rel => 
+        rel.relationshipType === 'parent' && rel.personFrom.gender === 'Male'
+      );
+      
+      // Find mother: parent relationship where personFrom is Female
+      const motherRel = member.relationshipsTo.find(rel => 
+        rel.relationshipType === 'parent' && rel.personFrom.gender === 'Female'
+      );
+      
+      // Find spouse: spouse relationship
+      const spouseRel = member.relationshipsTo.find(rel => 
+        rel.relationshipType === 'spouse'
+      );
+      
+      return {
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        middleName: member.middleName,
+        birthDate: member.birthDate,
+        deathDate: member.deathDate,
+        isLiving: member.isLiving,
+        profilePhotoId: member.profilePhotoId,
+        profilePhoto: member.profilePhoto,
+        fatherId: fatherRel?.personFromId || null,
+        motherId: motherRel?.personFromId || null,
+        spouseId: spouseRel?.personFromId || null
+      };
     });
     
     res.json({
       success: true,
       message: 'Get all family members',
-      data: members
+      data: transformedMembers
     });
   } catch (error) {
     console.error('Error fetching family members:', error);
@@ -54,7 +90,8 @@ router.get('/:id', async (req: Request, res: Response) => {
               select: {
                 id: true,
                 firstName: true,
-                lastName: true
+                lastName: true,
+                gender: true
               }
             }
           }
@@ -65,7 +102,8 @@ router.get('/:id', async (req: Request, res: Response) => {
               select: {
                 id: true,
                 firstName: true,
-                lastName: true
+                lastName: true,
+                gender: true
               }
             }
           }
@@ -79,11 +117,32 @@ router.get('/:id', async (req: Request, res: Response) => {
         error: 'Family member not found'
       });
     }
+
+    // Find derived relationship IDs
+    const fatherRel = member.relationshipsTo.find(rel => 
+      rel.relationshipType === 'parent' && rel.personFrom.gender === 'Male'
+    );
+    
+    const motherRel = member.relationshipsTo.find(rel => 
+      rel.relationshipType === 'parent' && rel.personFrom.gender === 'Female'
+    );
+    
+    const spouseRel = member.relationshipsTo.find(rel => 
+      rel.relationshipType === 'spouse'
+    );
+    
+    // Transform data to include fatherId, motherId, spouseId
+    const transformedMember = {
+      ...member,
+      fatherId: fatherRel?.personFromId || null,
+      motherId: motherRel?.personFromId || null,
+      spouseId: spouseRel?.personFromId || null
+    };
     
     res.json({
       success: true,
       message: `Get family member ${id}`,
-      data: member
+      data: transformedMember
     });
   } catch (error) {
     console.error('Error fetching family member:', error);
@@ -270,14 +329,561 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const memberData = req.body;
-    // TODO: Update database
+    const { 
+      firstName, 
+      lastName, 
+      bio, 
+      birthDate,
+      birthPlace,
+      deathDate,
+      deathPlace,
+      isLiving,
+      fatherId, 
+      motherId, 
+      spouseId,
+      middleName,
+      gender,
+      maidenName,
+      preferredName,
+      occupation,
+      education,
+      email,
+      phone,
+      currentLocation,
+      favoriteQuote
+    } = req.body;
+
+    // Check if member exists
+    const existingMember = await prisma.person.findUnique({
+      where: { id },
+      include: {
+        relationshipsTo: {
+          include: {
+            personFrom: true
+          }
+        }
+      }
+    });
+
+    if (!existingMember) {
+      return res.status(404).json({
+        success: false,
+        error: 'Family member not found'
+      });
+    }
+
+    // Validate parent/spouse IDs if provided
+    if (fatherId) {
+      const father = await prisma.person.findUnique({
+        where: { id: fatherId }
+      });
+      
+      if (!father) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation error',
+          message: `Father with id ${fatherId} does not exist`
+        });
+      }
+    }
+
+    if (motherId) {
+      const mother = await prisma.person.findUnique({
+        where: { id: motherId }
+      });
+      
+      if (!mother) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation error',
+          message: `Mother with id ${motherId} does not exist`
+        });
+      }
+    }
+
+    if (spouseId) {
+      const spouse = await prisma.person.findUnique({
+        where: { id: spouseId }
+      });
+      
+      if (!spouse) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation error',
+          message: `Spouse with id ${spouseId} does not exist`
+        });
+      }
+    }
+
+    // Update the person record
+    const updatedPerson = await prisma.person.update({
+      where: { id },
+      data: {
+        firstName: firstName || existingMember.firstName,
+        lastName: lastName || existingMember.lastName,
+        middleName: middleName !== undefined ? middleName : existingMember.middleName,
+        maidenName: maidenName !== undefined ? maidenName : existingMember.maidenName,
+        preferredName: preferredName !== undefined ? preferredName : existingMember.preferredName,
+        gender: gender !== undefined ? gender : existingMember.gender,
+        birthDate: birthDate ? new Date(birthDate) : existingMember.birthDate,
+        birthPlace: birthPlace !== undefined ? birthPlace : existingMember.birthPlace,
+        deathDate: deathDate ? new Date(deathDate) : existingMember.deathDate,
+        deathPlace: deathPlace !== undefined ? deathPlace : existingMember.deathPlace,
+        isLiving: isLiving !== undefined ? isLiving : existingMember.isLiving,
+        biography: bio !== undefined ? bio : existingMember.biography,
+        occupation: occupation !== undefined ? occupation : existingMember.occupation,
+        education: education !== undefined ? education : existingMember.education,
+        email: email !== undefined ? email : existingMember.email,
+        phone: phone !== undefined ? phone : existingMember.phone,
+        currentLocation: currentLocation !== undefined ? currentLocation : existingMember.currentLocation,
+        favoriteQuote: favoriteQuote !== undefined ? favoriteQuote : existingMember.favoriteQuote
+      }
+    });
+
+    // Handle relationship updates
+    // Find existing parent relationships (where this person is the child)
+    const existingFatherRel = await prisma.relationship.findFirst({
+      where: {
+        personToId: id,
+        relationshipType: 'parent',
+        personFrom: {
+          gender: 'Male'
+        }
+      }
+    });
+
+    const existingMotherRel = await prisma.relationship.findFirst({
+      where: {
+        personToId: id,
+        relationshipType: 'parent',
+        personFrom: {
+          gender: 'Female'
+        }
+      }
+    });
+
+    const existingSpouseRel = await prisma.relationship.findFirst({
+      where: {
+        OR: [
+          { personFromId: id, relationshipType: 'spouse' },
+          { personToId: id, relationshipType: 'spouse' }
+        ]
+      }
+    });
+
+    // Update father relationship
+    if (fatherId !== undefined) {
+      // Remove old father relationship if exists and different
+      if (existingFatherRel && existingFatherRel.personFromId !== fatherId) {
+        await prisma.relationship.deleteMany({
+          where: {
+            OR: [
+              { id: existingFatherRel.id },
+              { 
+                personFromId: id, 
+                personToId: existingFatherRel.personFromId, 
+                relationshipType: 'child' 
+              }
+            ]
+          }
+        });
+      }
+
+      // Add new father relationship if provided
+      if (fatherId && (!existingFatherRel || existingFatherRel.personFromId !== fatherId)) {
+        await prisma.relationship.create({
+          data: {
+            personFromId: fatherId,
+            personToId: id,
+            relationshipType: 'parent'
+          }
+        });
+        
+        // Create reverse child relationship
+        await prisma.relationship.create({
+          data: {
+            personFromId: id,
+            personToId: fatherId,
+            relationshipType: 'child'
+          }
+        });
+      }
+    }
+
+    // Update mother relationship
+    if (motherId !== undefined) {
+      // Remove old mother relationship if exists and different
+      if (existingMotherRel && existingMotherRel.personFromId !== motherId) {
+        await prisma.relationship.deleteMany({
+          where: {
+            OR: [
+              { id: existingMotherRel.id },
+              { 
+                personFromId: id, 
+                personToId: existingMotherRel.personFromId, 
+                relationshipType: 'child' 
+              }
+            ]
+          }
+        });
+      }
+
+      // Add new mother relationship if provided
+      if (motherId && (!existingMotherRel || existingMotherRel.personFromId !== motherId)) {
+        await prisma.relationship.create({
+          data: {
+            personFromId: motherId,
+            personToId: id,
+            relationshipType: 'parent'
+          }
+        });
+        
+        // Create reverse child relationship
+        await prisma.relationship.create({
+          data: {
+            personFromId: id,
+            personToId: motherId,
+            relationshipType: 'child'
+          }
+        });
+      }
+    }
+
+    // Update spouse relationship
+    if (spouseId !== undefined) {
+      // Remove old spouse relationship if exists and different
+      if (existingSpouseRel) {
+        const oldSpouseId = existingSpouseRel.personFromId === id 
+          ? existingSpouseRel.personToId 
+          : existingSpouseRel.personFromId;
+        
+        if (oldSpouseId !== spouseId) {
+          await prisma.relationship.deleteMany({
+            where: {
+              OR: [
+                { personFromId: id, personToId: oldSpouseId, relationshipType: 'spouse' },
+                { personFromId: oldSpouseId, personToId: id, relationshipType: 'spouse' }
+              ]
+            }
+          });
+        }
+      }
+
+      // Add new spouse relationship if provided
+      if (spouseId && (!existingSpouseRel || 
+          (existingSpouseRel.personFromId !== spouseId && existingSpouseRel.personToId !== spouseId))) {
+        await prisma.relationship.create({
+          data: {
+            personFromId: id,
+            personToId: spouseId,
+            relationshipType: 'spouse'
+          }
+        });
+        
+        // Create reverse spouse relationship
+        await prisma.relationship.create({
+          data: {
+            personFromId: spouseId,
+            personToId: id,
+            relationshipType: 'spouse'
+          }
+        });
+      }
+    }
+
     res.json({
-      message: `Family member ${id} updated`,
-      data: memberData
+      success: true,
+      message: 'Family member updated successfully',
+      data: updatedPerson
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error updating family member:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// PATCH update family member (alias for PUT to support both methods)
+router.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { 
+      firstName, 
+      lastName, 
+      bio, 
+      birthDate,
+      birthPlace,
+      deathDate,
+      deathPlace,
+      isLiving,
+      fatherId, 
+      motherId, 
+      spouseId,
+      middleName,
+      gender,
+      maidenName,
+      preferredName,
+      occupation,
+      education,
+      email,
+      phone,
+      currentLocation,
+      favoriteQuote
+    } = req.body;
+
+    // Check if member exists
+    const existingMember = await prisma.person.findUnique({
+      where: { id },
+      include: {
+        relationshipsTo: {
+          include: {
+            personFrom: true
+          }
+        }
+      }
+    });
+
+    if (!existingMember) {
+      return res.status(404).json({
+        success: false,
+        error: 'Family member not found'
+      });
+    }
+
+    // Validate parent/spouse IDs if provided
+    if (fatherId) {
+      const father = await prisma.person.findUnique({
+        where: { id: fatherId }
+      });
+      
+      if (!father) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation error',
+          message: `Father with id ${fatherId} does not exist`
+        });
+      }
+    }
+
+    if (motherId) {
+      const mother = await prisma.person.findUnique({
+        where: { id: motherId }
+      });
+      
+      if (!mother) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation error',
+          message: `Mother with id ${motherId} does not exist`
+        });
+      }
+    }
+
+    if (spouseId) {
+      const spouse = await prisma.person.findUnique({
+        where: { id: spouseId }
+      });
+      
+      if (!spouse) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation error',
+          message: `Spouse with id ${spouseId} does not exist`
+        });
+      }
+    }
+
+    // Update the person record
+    const updatedPerson = await prisma.person.update({
+      where: { id },
+      data: {
+        firstName: firstName || existingMember.firstName,
+        lastName: lastName || existingMember.lastName,
+        middleName: middleName !== undefined ? middleName : existingMember.middleName,
+        maidenName: maidenName !== undefined ? maidenName : existingMember.maidenName,
+        preferredName: preferredName !== undefined ? preferredName : existingMember.preferredName,
+        gender: gender !== undefined ? gender : existingMember.gender,
+        birthDate: birthDate ? new Date(birthDate) : existingMember.birthDate,
+        birthPlace: birthPlace !== undefined ? birthPlace : existingMember.birthPlace,
+        deathDate: deathDate ? new Date(deathDate) : existingMember.deathDate,
+        deathPlace: deathPlace !== undefined ? deathPlace : existingMember.deathPlace,
+        isLiving: isLiving !== undefined ? isLiving : existingMember.isLiving,
+        biography: bio !== undefined ? bio : existingMember.biography,
+        occupation: occupation !== undefined ? occupation : existingMember.occupation,
+        education: education !== undefined ? education : existingMember.education,
+        email: email !== undefined ? email : existingMember.email,
+        phone: phone !== undefined ? phone : existingMember.phone,
+        currentLocation: currentLocation !== undefined ? currentLocation : existingMember.currentLocation,
+        favoriteQuote: favoriteQuote !== undefined ? favoriteQuote : existingMember.favoriteQuote
+      }
+    });
+
+    // Handle relationship updates
+    // Find existing parent relationships (where this person is the child)
+    const existingFatherRel = await prisma.relationship.findFirst({
+      where: {
+        personToId: id,
+        relationshipType: 'parent',
+        personFrom: {
+          gender: 'Male'
+        }
+      }
+    });
+
+    const existingMotherRel = await prisma.relationship.findFirst({
+      where: {
+        personToId: id,
+        relationshipType: 'parent',
+        personFrom: {
+          gender: 'Female'
+        }
+      }
+    });
+
+    const existingSpouseRel = await prisma.relationship.findFirst({
+      where: {
+        OR: [
+          { personFromId: id, relationshipType: 'spouse' },
+          { personToId: id, relationshipType: 'spouse' }
+        ]
+      }
+    });
+
+    // Update father relationship
+    if (fatherId !== undefined) {
+      // Remove old father relationship if exists and different
+      if (existingFatherRel && existingFatherRel.personFromId !== fatherId) {
+        await prisma.relationship.deleteMany({
+          where: {
+            OR: [
+              { id: existingFatherRel.id },
+              { 
+                personFromId: id, 
+                personToId: existingFatherRel.personFromId, 
+                relationshipType: 'child' 
+              }
+            ]
+          }
+        });
+      }
+
+      // Add new father relationship if provided
+      if (fatherId && (!existingFatherRel || existingFatherRel.personFromId !== fatherId)) {
+        await prisma.relationship.create({
+          data: {
+            personFromId: fatherId,
+            personToId: id,
+            relationshipType: 'parent'
+          }
+        });
+        
+        // Create reverse child relationship
+        await prisma.relationship.create({
+          data: {
+            personFromId: id,
+            personToId: fatherId,
+            relationshipType: 'child'
+          }
+        });
+      }
+    }
+
+    // Update mother relationship
+    if (motherId !== undefined) {
+      // Remove old mother relationship if exists and different
+      if (existingMotherRel && existingMotherRel.personFromId !== motherId) {
+        await prisma.relationship.deleteMany({
+          where: {
+            OR: [
+              { id: existingMotherRel.id },
+              { 
+                personFromId: id, 
+                personToId: existingMotherRel.personFromId, 
+                relationshipType: 'child' 
+              }
+            ]
+          }
+        });
+      }
+
+      // Add new mother relationship if provided
+      if (motherId && (!existingMotherRel || existingMotherRel.personFromId !== motherId)) {
+        await prisma.relationship.create({
+          data: {
+            personFromId: motherId,
+            personToId: id,
+            relationshipType: 'parent'
+          }
+        });
+        
+        // Create reverse child relationship
+        await prisma.relationship.create({
+          data: {
+            personFromId: id,
+            personToId: motherId,
+            relationshipType: 'child'
+          }
+        });
+      }
+    }
+
+    // Update spouse relationship
+    if (spouseId !== undefined) {
+      // Remove old spouse relationship if exists and different
+      if (existingSpouseRel) {
+        const oldSpouseId = existingSpouseRel.personFromId === id 
+          ? existingSpouseRel.personToId 
+          : existingSpouseRel.personFromId;
+        
+        if (oldSpouseId !== spouseId) {
+          await prisma.relationship.deleteMany({
+            where: {
+              OR: [
+                { personFromId: id, personToId: oldSpouseId, relationshipType: 'spouse' },
+                { personFromId: oldSpouseId, personToId: id, relationshipType: 'spouse' }
+              ]
+            }
+          });
+        }
+      }
+
+      // Add new spouse relationship if provided
+      if (spouseId && (!existingSpouseRel || 
+          (existingSpouseRel.personFromId !== spouseId && existingSpouseRel.personToId !== spouseId))) {
+        await prisma.relationship.create({
+          data: {
+            personFromId: id,
+            personToId: spouseId,
+            relationshipType: 'spouse'
+          }
+        });
+        
+        // Create reverse spouse relationship
+        await prisma.relationship.create({
+          data: {
+            personFromId: spouseId,
+            personToId: id,
+            relationshipType: 'spouse'
+          }
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Family member updated successfully',
+      data: updatedPerson
+    });
+  } catch (error) {
+    console.error('Error updating family member:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

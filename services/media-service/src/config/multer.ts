@@ -80,7 +80,7 @@ const imageFileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilte
 export const uploadProfilePhoto = multer({
   storage: profilePhotoStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit for profile photos
+    fileSize: 20 * 1024 * 1024 // 20MB limit for profile photos
   },
   fileFilter: imageFileFilter
 });
@@ -91,7 +91,7 @@ export const uploadProfilePhoto = multer({
 export const uploadGalleryPhoto = multer({
   storage: galleryStorage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit for gallery images
+    fileSize: 30 * 1024 * 1024 // 30MB limit for gallery images
   },
   fileFilter: imageFileFilter
 });

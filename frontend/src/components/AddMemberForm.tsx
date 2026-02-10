@@ -8,7 +8,7 @@ import axios from 'axios';
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002/api/v1';
+const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
 
 console.log('[AddMemberForm] API_BASE_URL:', API_BASE_URL);
 console.log('[AddMemberForm] MEDIA_BASE_URL:', MEDIA_BASE_URL);
@@ -94,6 +94,7 @@ const ProfilePhotoUploader = ({
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
+      {/* @ts-ignore - framer-motion type conflict */}
       <motion.div
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
@@ -164,6 +165,7 @@ const GalleryPhotosUploader = ({
       <label className="block text-sm font-medium text-gray-700">
         Memory Gallery Photos <span className="text-xs text-gray-500">(Max 10)</span>
       </label>
+      {/* @ts-ignore - framer-motion type conflict */}
       <motion.div
         whileHover={{ scale: 1.01 }}
         {...getRootProps()}
@@ -358,7 +360,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
         profileFormData.append('memberId', memberId);
         profileFormData.append('title', 'Profile Photo');
 
-        await axios.post(`${MEDIA_BASE_URL}/upload/profile-photo`, profileFormData, {
+        await axios.post(`${MEDIA_BASE_URL}/api/v1/upload/profile-photo`, profileFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }
@@ -371,7 +373,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
         });
         galleryFormData.append('memberId', memberId);
 
-        await axios.post(`${MEDIA_BASE_URL}/upload/gallery-photos`, galleryFormData, {
+        await axios.post(`${MEDIA_BASE_URL}/api/v1/upload/gallery-photos`, galleryFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }

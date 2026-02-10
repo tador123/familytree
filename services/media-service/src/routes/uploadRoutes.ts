@@ -2,20 +2,19 @@
 import { Router, Request, Response } from 'express';
 // @ts-ignore
 import path from 'path';
-// import prisma from '../lib/prisma'; // Temporarily disabled due to Prisma issues
+import prisma from '../lib/prisma';
 import { uploadProfilePhoto, uploadGalleryPhoto, uploadGeneral } from '../config/multer';
-// import { 
-//   saveMediaRecord, 
-//   createThumbnail,
-//   getMemoryGalleryForMember 
-// } from '../utils/mediaUtils'; // Temporarily disabled
+import { 
+  saveMediaRecord, 
+  createThumbnail
+} from '../utils/mediaUtils';
 
 const router = Router();
 
 /**
  * POST upload profile photo
  * Uploads a profile photo to /profile-photos directory
- * Links to memberId
+ * Links to memberId and updates the person record
  */
 router.post('/profile-photo', uploadProfilePhoto.single('photo'), async (req: Request, res: Response) => {
   try {
@@ -35,20 +34,52 @@ router.post('/profile-photo', uploadProfilePhoto.single('photo'), async (req: Re
       });
     }
 
-    // For now, skip database and thumbnail - just save the file
-    console.log('Profile photo uploaded:', req.file.filename, 'for member:', memberId);
+    // Create thumbnail
+    const thumbnailFilename = `thumb_${req.file.filename}`;
+    const thumbnailPath = path.join(path.dirname(req.file.path), thumbnailFilename);
+    
+    try {
+      await createThumbnail(req.file.path, thumbnailPath, 200);
+    } catch (thumbError) {
+      console.warn('Thumbnail creation failed, continuing without thumbnail:', thumbError);
+    }
+
+    // Save media record to database
+    const media = await saveMediaRecord({
+      filename: req.file.filename,
+      originalFilename: req.file.originalname,
+      filePath: `/uploads/profile-photos/${req.file.filename}`,
+      thumbnailPath: thumbnailPath ? `/uploads/profile-photos/${thumbnailFilename}` : undefined,
+      fileType: 'image',
+      mimeType: req.file.mimetype,
+      fileSize: req.file.size,
+      personId: memberId,
+      title: title || 'Profile Photo',
+      description: description || null,
+      isFeatured: false,
+      tags: ['profile']
+    });
+
+    // Update person's profilePhotoId
+    await prisma.person.update({
+      where: { id: memberId },
+      data: { profilePhotoId: media.id }
+    });
+
+    console.log('Profile photo uploaded and linked:', media.id, 'for member:', memberId);
 
     res.status(201).json({
       success: true,
       message: 'Profile photo uploaded successfully',
       data: {
-        id: req.file.filename,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        path: `/uploads/profile-photos/${req.file.filename}`,
-        memberId: memberId
+        id: media.id,
+        filename: media.filename,
+        originalName: media.originalFilename,
+        mimetype: media.mimeType,
+        size: media.fileSize,
+        path: `/uploads/profile-photos/${media.filename}`,
+        thumbnailPath: thumbnailPath ? `/uploads/profile-photos/${thumbnailFilename}` : null,
+        memberId: media.personId
       }
     });
   } catch (error) {
@@ -179,12 +210,38 @@ router.post('/gallery-photos', uploadGalleryPhoto.array('photos', 10), async (re
     const uploadedMedia = [];
 
     for (const file of files) {
-      console.log('Gallery photo uploaded:', file.filename, 'for member:', memberId);
+      // Create thumbnail
+      const thumbnailFilename = `thumb_${file.filename}`;
+      const thumbnailPath = path.join(path.dirname(file.path), thumbnailFilename);
+      
+      try {
+        await createThumbnail(file.path, thumbnailPath, 300);
+      } catch (thumbError) {
+        console.warn('Thumbnail creation failed for', file.filename, thumbError);
+      }
+
+      // Save to database
+      const media = await saveMediaRecord({
+        filename: file.filename,
+        originalFilename: file.originalname,
+        filePath: `/uploads/galleries/${file.filename}`,
+        thumbnailPath: thumbnailPath ? `/uploads/galleries/${thumbnailFilename}` : undefined,
+        fileType: 'image',
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        personId: memberId,
+        title: file.originalname,
+        isFeatured: false,
+        tags: ['gallery']
+      });
+
+      console.log('Gallery photo uploaded:', media.id, 'for member:', memberId);
       
       uploadedMedia.push({
-        id: file.filename,
-        filename: file.filename,
-        path: `/uploads/galleries/${file.filename}`
+        id: media.id,
+        filename: media.filename,
+        path: `/uploads/galleries/${media.filename}`,
+        thumbnailPath: thumbnailPath ? `/uploads/galleries/${thumbnailFilename}` : null
       });
     }
 

@@ -2,8 +2,8 @@
 'use client'
 
 // @ts-ignore - next is installed in Docker container
-import SimpleFamilyTree from '@/components/SimpleFamilyTree';
+import HierarchicalFamilyTree from '@/components/HierarchicalFamilyTree';
 
 export default function TreePage() {
-  return <SimpleFamilyTree />;
+  return <HierarchicalFamilyTree />;
 }
