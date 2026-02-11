@@ -40,8 +40,8 @@ COPY --from=builder /app/package.json ./
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
 
-# Set memory limit for Node.js (suitable for t2.micro)
-ENV NODE_OPTIONS="--max-old-space-size=200"
+# Set memory limit for Node.js
+ENV NODE_OPTIONS="--max-old-space-size=400"
 ENV NODE_ENV=production
 
 EXPOSE 3001

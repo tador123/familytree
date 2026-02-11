@@ -42,7 +42,7 @@ RUN apk add --no-cache dumb-init
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-old-space-size=200"
+ENV NODE_OPTIONS="--max-old-space-size=400"
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Copy standalone output
