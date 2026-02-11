@@ -1,0 +1,53 @@
+# ============================================
+# Media Service - Production Dockerfile
+# Multi-stage build for minimal image size
+# ============================================
+
+# Stage 1: Build
+FROM node:18-alpine AS builder
+
+RUN apk add --no-cache openssl libc6-compat
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY prisma ./prisma/
+
+RUN npm ci --only=production && \
+    npx prisma generate
+
+COPY tsconfig.json ./
+COPY src ./src
+
+# Install dev dependencies temporarily for build
+RUN npm install --only=development && \
+    npx tsc --skipLibCheck && \
+    npm prune --production
+
+# Stage 2: Production
+FROM node:18-alpine AS production
+
+RUN apk add --no-cache openssl libc6-compat dumb-init
+
+WORKDIR /app
+
+# Copy production node_modules and built files
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./
+
+# Create uploads directory
+RUN mkdir -p /uploads
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+# Set memory limit for Node.js (suitable for t2.micro)
+ENV NODE_OPTIONS="--max-old-space-size=150"
+ENV NODE_ENV=production
+
+EXPOSE 3002
+
+# Startup: generate prisma client, then start
+CMD ["sh", "-c", "npx prisma generate && node dist/index.js"]

@@ -1,0 +1,169 @@
+# ============================================
+# Family Tree Application - Production Docker Compose
+# Optimized for Oracle Cloud Always Free
+# ARM VM.Standard.A1.Flex (4 OCPU / 24GB RAM)
+# ============================================
+
+version: '3.8'
+
+services:
+  # ---- Nginx Reverse Proxy ----
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: familytree-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      api-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks:
+      - familytree-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ---- PostgreSQL Database ----
+  postgres:
+    image: postgres:15-alpine
+    container_name: familytree-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-familytree}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-familytree}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: >
+      postgres
+        -c shared_buffers=512MB
+        -c effective_cache_size=2GB
+        -c work_mem=16MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=100
+        -c wal_buffers=16MB
+        -c checkpoint_completion_target=0.9
+        -c random_page_cost=1.1
+        -c huge_pages=try
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - familytree-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-familytree}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ---- API Service ----
+  api-service:
+    build:
+      context: ./services/api-service
+      dockerfile: Dockerfile.prod
+    container_name: familytree-api
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${DB_USER:-familytree}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-familytree}
+      MEDIA_SERVICE_URL: http://media-service:3002
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@familytree.local}
+      FROM_NAME: ${FROM_NAME:-Family Tree App}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - familytree-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---- Media Service ----
+  media-service:
+    build:
+      context: ./services/media-service
+      dockerfile: Dockerfile.prod
+    container_name: familytree-media
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: postgresql://${DB_USER:-familytree}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-familytree}
+      UPLOAD_PATH: /uploads
+    volumes:
+      - media_uploads:/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - familytree-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---- Frontend (Next.js) ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-/api/v1}
+        - NEXT_PUBLIC_MEDIA_URL=${NEXT_PUBLIC_MEDIA_URL:-}
+        - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+    container_name: familytree-frontend
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: 3000
+    depends_on:
+      api-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
+    networks:
+      - familytree-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  familytree-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  media_uploads:
