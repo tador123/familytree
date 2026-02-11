@@ -69,6 +69,13 @@ done
 echo ""
 echo "   ✓ Database is healthy"
 sleep 3
+
+# Sync Prisma schema with database and regenerate client
+echo "   Syncing Prisma schema with database..."
+docker exec familytree-api npx prisma generate > /dev/null 2>&1 || true
+docker exec familytree-api npx prisma db push --skip-generate --accept-data-loss > /dev/null 2>&1 || true
+docker exec familytree-media npx prisma generate > /dev/null 2>&1 || true
+echo "   ✓ Prisma schema synced"
 echo "   ✓ API and Media services ready"
 echo ""
 

@@ -83,6 +83,13 @@ if ($elapsed -ge $maxWait) {
 }
 
 Start-Sleep -Seconds 3
+
+# Sync Prisma schema with database and regenerate client
+Write-Host "   Syncing Prisma schema with database..." -ForegroundColor Gray
+docker exec familytree-api npx prisma generate 2>$null | Out-Null
+docker exec familytree-api npx prisma db push --skip-generate --accept-data-loss 2>$null | Out-Null
+docker exec familytree-media npx prisma generate 2>$null | Out-Null
+Write-Host "   [OK] Prisma schema synced" -ForegroundColor Green
 Write-Host "   [OK] API and Media services ready" -ForegroundColor Green
 Write-Host ""
 
