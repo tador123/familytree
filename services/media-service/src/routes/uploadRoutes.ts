@@ -319,5 +319,3 @@ router.post('/multiple', uploadGeneral.array('files', 10), async (req: Request, 
 });
 
 export { router as uploadRoutes };
-
-export { router as uploadRoutes };
