@@ -12,7 +12,7 @@ import axios from 'axios'
 import { useAuth } from '@/contexts/AuthContext'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
+const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || '';
 
 const BACKGROUND_COLORS = ['pink', 'peach', 'lavender', 'mint', 'sky', 'cream', 'rose', 'sage'] as const;
 

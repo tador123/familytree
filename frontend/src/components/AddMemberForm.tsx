@@ -10,7 +10,7 @@ import LoginPromptModal from './LoginPromptModal';
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
+const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || '';
 
 console.log('[AddMemberForm] API_BASE_URL:', API_BASE_URL);
 console.log('[AddMemberForm] MEDIA_BASE_URL:', MEDIA_BASE_URL);

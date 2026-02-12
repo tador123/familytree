@@ -136,7 +136,7 @@ const MemberCard = ({ member, onClick }: { member: FamilyMember; onClick: () => 
     return birth && death ? `${birth} - ${death}` : birth || death || '';
   };
 
-  const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
+  const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || '';
   const profileImageUrl = member.profilePhoto?.filePath 
     ? `${MEDIA_BASE_URL}${member.profilePhoto.filePath}` 
     : null;
@@ -292,7 +292,7 @@ export default function HierarchicalFamilyTree() {
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const { isLoading: authLoading } = useAuth();
 
-  const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
+  const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || '';
 
   // Helper function to get member name by ID
   const getMemberNameById = (memberId: string | undefined): string => {

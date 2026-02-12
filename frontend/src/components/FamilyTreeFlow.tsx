@@ -29,7 +29,7 @@ import ScrapbookOverlay from './ScrapbookOverlay';
 import 'reactflow/dist/style.css';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || 'http://localhost:3002';
+const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_MEDIA_URL || '';
 
 interface FamilyMember {
   id: string;
