@@ -21,6 +21,9 @@ services:
     container_name: familytree-nginx
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       api-service:
         condition: service_healthy
