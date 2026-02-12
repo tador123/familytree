@@ -2,7 +2,7 @@
 # ============================================================
 # Family Tree Application - Production Deployment Script
 # Deploys the application using Docker Compose
-# Supports: Oracle Cloud (ARM), AWS EC2, any Linux VPS
+# Supports: AWS EC2 Free Tier, Oracle Cloud (ARM), any Linux VPS
 # Usage: bash deploy/deploy.sh
 # ============================================================
 
@@ -12,8 +12,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+# ---- Auto-detect platform and select compose file ----
+DETECTED_PLATFORM="generic"
+COMPOSE_FILE="docker-compose.prod.yml"
+
+# Check total RAM (in MB)
+TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "0")
+
+if [ "$TOTAL_RAM_MB" -le 1200 ] 2>/dev/null; then
+    # 1 GB RAM → AWS t2.micro or similar small VPS
+    DETECTED_PLATFORM="aws-free-tier"
+    COMPOSE_FILE="docker-compose.aws.yml"
+elif [ "$(uname -m)" = "aarch64" ]; then
+    DETECTED_PLATFORM="oracle-arm"
+    COMPOSE_FILE="docker-compose.prod.yml"
+fi
+
+# Allow manual override via env var
+if [ -n "$COMPOSE_OVERRIDE" ]; then
+    COMPOSE_FILE="$COMPOSE_OVERRIDE"
+fi
+
 echo "============================================================"
 echo "  Family Tree App - Production Deployment"
+echo "  Platform: $DETECTED_PLATFORM | Compose: $COMPOSE_FILE"
+echo "  RAM: ${TOTAL_RAM_MB} MB | Swap: $(free -m 2>/dev/null | awk '/^Swap:/ {print $2}') MB"
 echo "============================================================"
 echo ""
 
@@ -26,7 +49,7 @@ fi
 echo "  ✓ Docker is running"
 
 if ! docker compose version > /dev/null 2>&1; then
-    echo "  ✗ Docker Compose not found. Run deploy/oracle-setup.sh first."
+    echo "  ✗ Docker Compose not found. Run deploy/aws-setup.sh first."
     exit 1
 fi
 echo "  ✓ Docker Compose available"
@@ -99,19 +122,25 @@ echo ""
 
 # Stop existing containers gracefully
 echo "[4/9] Stopping existing services..."
-docker compose -f docker-compose.prod.yml --env-file .env.production down --timeout 30 2>/dev/null || true
+docker compose -f "$COMPOSE_FILE" --env-file .env.production down --timeout 30 2>/dev/null || true
+# Also stop the other compose file in case user switched platforms
+if [ "$COMPOSE_FILE" = "docker-compose.aws.yml" ]; then
+    docker compose -f docker-compose.prod.yml --env-file .env.production down --timeout 10 2>/dev/null || true
+else
+    docker compose -f docker-compose.aws.yml --env-file .env.production down --timeout 10 2>/dev/null || true
+fi
 echo "  ✓ Previous deployment stopped"
 echo ""
 
 # Build production images
 echo "[5/9] Building production images (this may take 5-10 minutes on first run)..."
-docker compose -f docker-compose.prod.yml --env-file .env.production build --no-cache
+docker compose -f "$COMPOSE_FILE" --env-file .env.production build --no-cache
 echo "  ✓ Images built"
 echo ""
 
 # Start services
 echo "[6/9] Starting production services..."
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+docker compose -f "$COMPOSE_FILE" --env-file .env.production up -d
 echo "  ✓ Services starting..."
 echo ""
 
@@ -176,29 +205,28 @@ if [ -f "$BACKUP_SCRIPT" ]; then
 fi
 echo ""
 
-echo "[9/9] Setting up anti-reclamation keepalive..."
+echo "[9/9] Platform-specific setup..."
 echo ""
 
-# Oracle Cloud may reclaim idle Always Free instances
-# This cron generates minimal CPU/network activity every 4 hours
-KEEPALIVE_SCRIPT="$PROJECT_DIR/deploy/keepalive.sh"
-cat > "$KEEPALIVE_SCRIPT" << 'KEEPALIVE'
+if [ "$DETECTED_PLATFORM" = "oracle-arm" ]; then
+    # Oracle Cloud may reclaim idle Always Free instances
+    KEEPALIVE_SCRIPT="$PROJECT_DIR/deploy/keepalive.sh"
+    cat > "$KEEPALIVE_SCRIPT" << 'KEEPALIVE'
 #!/bin/bash
-# Simple keepalive - generates minimal activity to prevent Oracle idle reclamation
-# Runs a health check + light CPU task
 curl -sf http://localhost/health/api > /dev/null 2>&1 || true
 curl -sf http://localhost/health/media > /dev/null 2>&1 || true
-# Brief CPU activity (< 1 second)
 dd if=/dev/urandom bs=1M count=1 | md5sum > /dev/null 2>&1
 KEEPALIVE
-chmod +x "$KEEPALIVE_SCRIPT"
-
-KEEPALIVE_CRON="0 */4 * * * /bin/bash $KEEPALIVE_SCRIPT > /dev/null 2>&1"
-if crontab -l 2>/dev/null | grep -qF "keepalive.sh"; then
-    echo "  ✓ Keepalive cron already configured"
+    chmod +x "$KEEPALIVE_SCRIPT"
+    KEEPALIVE_CRON="0 */4 * * * /bin/bash $KEEPALIVE_SCRIPT > /dev/null 2>&1"
+    if crontab -l 2>/dev/null | grep -qF "keepalive.sh"; then
+        echo "  ✓ Oracle keepalive cron already configured"
+    else
+        (crontab -l 2>/dev/null; echo "$KEEPALIVE_CRON") | crontab -
+        echo "  ✓ Oracle keepalive cron installed (runs every 4 hours)"
+    fi
 else
-    (crontab -l 2>/dev/null; echo "$KEEPALIVE_CRON") | crontab -
-    echo "  ✓ Keepalive cron installed (runs every 4 hours)"
+    echo "  ✓ AWS Free Tier — no keepalive needed (instances are not reclaimed)"
 fi
 echo ""
 
@@ -220,10 +248,10 @@ echo "    API:   http://$PUBLIC_IP/health/api"
 echo "    Media: http://$PUBLIC_IP/health/media"
 echo ""
 echo "  Useful commands:"
-echo "    View logs:      docker compose -f docker-compose.prod.yml logs -f"
-echo "    View API logs:  docker compose -f docker-compose.prod.yml logs -f api-service"
-echo "    Restart:        docker compose -f docker-compose.prod.yml restart"
-echo "    Stop:           docker compose -f docker-compose.prod.yml down"
+echo "    View logs:      docker compose -f $COMPOSE_FILE logs -f"
+echo "    View API logs:  docker compose -f $COMPOSE_FILE logs -f api-service"
+echo "    Restart:        docker compose -f $COMPOSE_FILE restart"
+echo "    Stop:           docker compose -f $COMPOSE_FILE down"
 echo "    Redeploy:       bash deploy/deploy.sh"
 echo "    Manual backup:  bash deploy/backup.sh"
 echo "    Restore backup: gunzip -c /backups/daily/<file>.sql.gz | docker exec -i familytree-db psql -U familytree -d familytree"
