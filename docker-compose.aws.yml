@@ -12,8 +12,6 @@
 #   Total:        ~1.16 GB (fits in RAM, swap as safety net)
 # ============================================
 
-version: '3.8'
-
 services:
   # ---- Nginx Reverse Proxy ----
   nginx:
