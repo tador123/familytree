@@ -245,6 +245,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ stage: string; percent: number } | null>(null);
 
   // Debug current step
   console.log('AddMemberForm render - currentStep:', currentStep, 'isSubmitting:', isSubmitting);
@@ -345,6 +346,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
       }
 
       // Step 1: Create the member
+      setUploadProgress({ stage: 'Creating member...', percent: 0 });
       console.log('Creating member with URL:', `${API_BASE_URL}/members`);
       const memberResponse = await axios.post(`${API_BASE_URL}/members`, {
         firstName: data.firstName,
@@ -366,6 +368,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
 
       // Step 2: Upload profile photo if selected
       if (profilePhotoFile) {
+        setUploadProgress({ stage: 'Uploading profile photo...', percent: 0 });
         const profileFormData = new FormData();
         profileFormData.append('photo', profilePhotoFile);
         profileFormData.append('memberId', memberId);
@@ -373,11 +376,18 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
 
         await axios.post(`${MEDIA_BASE_URL}/api/v1/upload/profile-photo`, profileFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            const percent = progressEvent.total
+              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              : 0;
+            setUploadProgress({ stage: 'Uploading profile photo...', percent });
+          },
         });
       }
 
       // Step 3: Upload gallery photos if selected
       if (galleryPhotos.length > 0) {
+        setUploadProgress({ stage: `Uploading ${galleryPhotos.length} gallery photos...`, percent: 0 });
         const galleryFormData = new FormData();
         galleryPhotos.forEach((photo) => {
           galleryFormData.append('photos', photo);
@@ -386,8 +396,16 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
 
         await axios.post(`${MEDIA_BASE_URL}/api/v1/upload/gallery-photos`, galleryFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            const percent = progressEvent.total
+              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              : 0;
+            setUploadProgress({ stage: `Uploading ${galleryPhotos.length} gallery photos...`, percent });
+          },
         });
       }
+
+      setUploadProgress(null);
 
       // Show success animation
       setShowSuccess(true);
@@ -400,6 +418,7 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
       alert(error.response?.data?.message || 'Failed to create family member');
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -432,6 +451,43 @@ export default function AddMemberForm({ onSuccess }: { onSuccess?: () => void })
               </motion.div>
               <h3 className="text-2xl font-bold text-gray-800 mb-2">Success!</h3>
               <p className="text-gray-600">Family member added successfully</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Progress Overlay */}
+      <AnimatePresence>
+        {isSubmitting && uploadProgress && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4"
+            >
+              <div className="text-center mb-4">
+                <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-purple-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-1">{uploadProgress.stage}</h3>
+                <p className="text-sm text-gray-500">{uploadProgress.percent}% complete</p>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <motion.div
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full"
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${uploadProgress.percent}%` }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
             </motion.div>
           </motion.div>
         )}
